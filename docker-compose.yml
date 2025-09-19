@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  adventure-game:
+    build: .
+    container_name: docker-adventure-game
+    volumes:
+      - c:\src\dockergame\shared:/app/shared
+    environment:
+      - OLLAMA_HOST=host.docker.internal:11434
+      - GAME_LOG_FILE=/app/shared/game.log
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    networks:
+      - game-network
+
+networks:
+  game-network:
+    driver: bridge

@@ -1,0 +1,18 @@
+## Installation Instructions
+
+1. **Create the directory structure:**
+   ```cmd
+   mkdir c:\src\dockergame
+   cd c:\src\dockergame
+   mkdir shared
+   mkdir src
+
+Create all the files as shown above in their respective directories
+Start Ollama on your Windows 11 host:
+cmdollama serve
+ollama pull gemma2
+
+Build and run the game:
+cmddocker-compose up --build
+
+Play the game! The container will stay running and you can interact with it directly.
