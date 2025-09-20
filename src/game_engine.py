@@ -6,6 +6,7 @@ from player import Player
 from world import World
 from commands import CommandParser
 from ollama_client import OllamaClient
+from items import ItemManager
 
 class GameEngine:
     def __init__(self, logger):
@@ -14,6 +15,7 @@ class GameEngine:
         self.world = World()
         self.command_parser = CommandParser()
         self.ollama_client = OllamaClient(logger)
+        self.item_manager = ItemManager()
         
         # Place player in starting room
         self.player.current_room = "forest_entrance"
@@ -48,6 +50,10 @@ class GameEngine:
                 return self._handle_grab(args)
             elif command == "inventory":
                 return self._handle_inventory()
+            elif command == "use":
+                return self._handle_use(args)
+            elif command == "examine":
+                return self._handle_examine(args)
             elif command == "fight":
                 return self._handle_fight(args)
             else:
@@ -136,7 +142,68 @@ class GameEngine:
         if not self.player.inventory:
             return "🎒 Your inventory is empty."
             
-        return f"🎒 Inventory: {', '.join(self.player.inventory)}"
+        result = "🎒 Inventory:\n"
+        for item in self.player.inventory:
+            item_obj = self.item_manager.get_item(item)
+            if item_obj:
+                result += f"  • {item} - {item_obj.description[:50]}...\n"
+            else:
+                result += f"  • {item}\n"
+        
+        return result.rstrip()
+    
+    def _handle_use(self, item_name):
+        """Handle use command"""
+        if not item_name:
+            return "🔧 Use what? Specify an item name."
+            
+        if not self.player.has_item(item_name):
+            return f"❌ You don't have '{item_name}' in your inventory."
+            
+        item = self.item_manager.get_item(item_name)
+        if not item:
+            return f"❓ Unknown item: {item_name}"
+            
+        if not item.usable:
+            return f"🚫 You can't use the {item_name}."
+            
+        # Use the item
+        result = item.use(self.player, self)
+        
+        # Remove consumable items
+        if item.consumable:
+            self.player.remove_item(item_name)
+            result += f" The {item_name} is consumed."
+            
+        self.logger.log(f"Player used: {item_name}")
+        return result
+    
+    def _handle_examine(self, item_name):
+        """Handle examine command"""
+        if not item_name:
+            return "🔍 Examine what? Specify an item name."
+            
+        # Check if item is in inventory
+        if self.player.has_item(item_name):
+            description = self.item_manager.get_item_description(item_name)
+            if description:
+                return f"🔍 {description}"
+            else:
+                return f"❓ You can't find details about '{item_name}'."
+        
+        # Check if item is in current room
+        current_room = self.world.get_room(self.player.current_room)
+        room_items = current_room.get('items', [])
+        
+        for item in room_items:
+            if item.lower() == item_name.lower():
+                description = self.item_manager.get_item_description(item_name)
+                if description:
+                    return f"🔍 {description}"
+                else:
+                    return f"❓ You can't find details about '{item_name}'."
+        
+        return f"❌ There's no '{item_name}' here or in your inventory."
     
     def _handle_fight(self, target):
         """Handle fight command with AI assistance"""
@@ -150,11 +217,23 @@ class GameEngine:
         if not enemies:
             return "⚔️ There's nothing to fight here."
             
+        # Check for weapons in inventory
+        weapons = []
+        for item_name in self.player.inventory:
+            item = self.item_manager.get_item(item_name)
+            if item and hasattr(item, 'damage'):
+                weapons.append(item)
+        
+        weapon_text = ""
+        if weapons:
+            weapon_text = f" You are wielding: {', '.join([w.name for w in weapons])}"
+        
         # Use AI to generate fight scenario
         fight_prompt = f"""
         The player is fighting a {target} in {current_room['name']}. 
         The room description: {current_room['description']}
         Player inventory: {', '.join(self.player.inventory) if self.player.inventory else 'empty'}
+        {weapon_text}
         
         Generate a short, exciting fight outcome (2-3 sentences). 
         Make it adventurous but not too violent.
@@ -188,6 +267,12 @@ class GameEngine:
    grab <item>       - Grab specific item
 
 🎒 INVENTORY (i)     - Show your inventory
+
+🔧 USE (u)           - Use an item from inventory
+   use <item>        - Use specific item
+
+🔍 EXAMINE (x)       - Examine an item in detail
+   examine <item>    - Get detailed item information
 
 ⚔️ FIGHT (f)         - Fight an enemy
    fight <enemy>     - Fight specific enemy

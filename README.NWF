@@ -1,0 +1,12 @@
+# 1. Create local repo
+cd c:\src\dockergame
+git init
+git add .
+git commit -m "Initial commit: Docker Adventure Game"
+
+# 2. Create repo on GitHub.com (ryzenate/docker-adventure-game)
+
+# 3. Push to GitHub
+git remote add origin https://github.com/ryzenate/docker-adventure-game.git
+git branch -M main
+git push -u origin main
